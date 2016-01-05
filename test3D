@@ -1,0 +1,169 @@
+% % F：存放所有平面的单元信息
+% % Jie: 存放节点的坐标 Jie（x,y,z）
+% % Dan: 存放三角形的3个节点编号
+% % tetrahedron：存放四面体的4个节点编号
+clc
+clear all;
+close all;
+%% 有限元剖分 %%
+%% 三维剖分参数初始化
+sectors_n = 8;%分区数
+JB_n = 8;%极板的个数
+cycles_n = 3 ;%管道内的圈数
+tubewall_cycles = 2;%管壁剖分的圈数
+polar_cycles = 0;%%极板剖分的圈数
+shielding_cycles = 2;%屏蔽层剖分的圈数
+% high_cycles = 2;%纵向圈数（注：例如5层有6圈）
+
+%% 管道的实际规格
+V = 5;
+R=3.3;%每一平面的圈半径
+r=0.5;%管壁厚度
+polar_r=0;%极板厚度
+polar_h = 6.84;%极板高度
+shielding_layer_r=0.95;%屏蔽层厚度
+
+%% 平面参数
+high_cycles = round( polar_h*cycles_n/R);%纵向层数（注：例如5层有6圈）
+tube_high = polar_h/high_cycles;%纵向每一层的高度
+
+JB_N1 = 1;%极板开始所在的层数
+JB_N2 = high_cycles;%极板结束所在的层数;%%极板结束所在的层数必须大于极板开始所在的层数
+
+% tube_high=R/cycles_n;%纵向每一层的高度
+E = sectors_n*cycles_n*cycles_n;%每一平面管内单元总数
+E_No=(cycles_n + 1) *cycles_n *sectors_n /2 +1; %每一平面管内节点总数
+tol_n_innernode=cycles_n*sectors_n;%管道平面最外圈的节点个数
+every_cycles_n=tol_n_innernode*2;%管壁中平面每圈中单元总个数
+
+tubewall_tol_n=every_cycles_n*tubewall_cycles;%管壁平面单元总个数
+tubewall_tol_node_n=tol_n_innernode*(tubewall_cycles+1);%管壁节点总个数（包含管道最外层上的节点）
+
+polar_tol_n=every_cycles_n*polar_cycles;%平面极板层单元总个数
+polar_tol_node_n=tol_n_innernode*(polar_cycles+1);%平面极板层节点总个数（包含管壁最外层上的节点）
+
+shielding_tol_n=every_cycles_n*shielding_cycles;%平面屏蔽层单元总个数
+shielding_tol_node_n=tol_n_innernode*(shielding_cycles+1);%平面屏蔽层节点总个数（包含管壁最外层上的节点）
+
+E_n=E+tubewall_tol_n+polar_tol_n+shielding_tol_n; %平面管道的单元总个数
+E_No_n=E_No+tubewall_tol_node_n+polar_tol_node_n+shielding_tol_node_n-3*tol_n_innernode; %平面管壁+管内+极板层+屏蔽层的节点总个数（去除重复节点）
+
+JB_jie_n=(tol_n_innernode/JB_n-1)*(polar_cycles+1);%平面极板所覆盖的节点个数
+%% 立体参数初始化
+% 管内
+T=E*high_cycles; %立体管内三角形单元总个数
+T_N=E_n*high_cycles; %立体三角形单元总个数
+T_No=E_No*high_cycles;%立体管内节点总个数
+T_No_N=E_No_n*high_cycles;%立体管道节点总个数
+inner_tetrahedron_n=(T-E)*3;%立体管内总单元数，四面体个数
+tetrahedron_n=(T_N-E_n)*3; %立体总单元数，四面体个数
+% 管壁
+tubewall_tol_N=every_cycles_n*tubewall_cycles*high_cycles;%立体管壁单元总个数
+tubewall_tol_node_N=tol_n_innernode*(tubewall_cycles+1)*high_cycles;%立体管壁节点总个数（包含管道最外层上的节点）
+tubewall_tetrahedron_n=(tubewall_tol_N-tubewall_tol_n)*3;%立体管壁总单元数，四面体个数
+% 极板层
+polar_tol_N=every_cycles_n*polar_cycles*high_cycles;%立体极板层单元总个数
+polar_tol_node_N=tol_n_innernode*(polar_cycles+1)*high_cycles;%立体极板层节点总个数（包含管壁最外层上的节点）
+polar_tetrahedron_n=(polar_tol_N-polar_tol_n)*3;%立体极板总单元数，四面体个数
+% 屏蔽层
+shielding_tol_N=every_cycles_n*shielding_cycles*high_cycles;%立体屏蔽层单元总个数
+shielding_tol_node_N=tol_n_innernode*(shielding_cycles+1)*high_cycles;%立体屏蔽层节点总个数（包含管壁最外层上的节点）
+shielding_tetrahedron_n=(shielding_tol_N-shielding_tol_n)*3;%立体屏蔽层总单元数，四面体个数
+
+JB_jie_N=JB_jie_n*high_cycles;%立体极板所覆盖的节点个数
+
+%% 有限元剖分程序
+% F = Node_number_id_Threedimension( sectors_n, cycles_n,high_cycles,R,tube_high);
+[ F ] =Threedimension_number_2(sectors_n, cycles_n,tubewall_cycles,...
+    polar_cycles,shielding_cycles,E_n,E_No_n,T_N,E_No,E,tubewall_tol_n,...
+    polar_tol_n,shielding_tol_n,tubewall_tol_node_n,polar_tol_node_n, ...
+    R,r,polar_r,shielding_layer_r,tol_n_innernode,high_cycles,tube_high);
+% F ;%存放所有单元的坐标以及节点编号
+%｛[节点编号，节点所在圈数(从第0圈开始)，节点所在的层数(从第1层开始)]，[节点的坐标]｝
+Jie = jiedian(F,T_No_N,T_N);%平面节点坐标信息
+Dan = danyuan(F,T_N);%某一平面三角单元包含节点信息
+tetrahedron = tetrahedron(Dan, tetrahedron_n, E_n);%四面体节点信息
+
+%% 画图，展示不同epsilon情况下的管内分布情况
+% draw(tetrahedron_n,Jie,tetrahedron ,sectors_n,cycles_n,high_cycles,R);
+%% 
+% [tubewall_Jie,tubewall_Dan] = tubewall_number(tubewall_cycles, R,r,tubewall_tol_n,tubewall_tol_node_n,tol_n_innernode);
+% [polar_Jie,polar_Dan] = polar_number_id(polar_cycles, R,r,polar_r,polar_tol_n,polar_tol_node_n,tol_n_innernode);
+% 
+% [shielding_Jie,shielding_Dan] = shielding_layer_number_id(shielding_tol_n,shielding_tol_node_n,shielding_cycles, R,r,polar_r,shielding_layer_r,tol_n_innernode);
+% 
+% 
+% Jie=Node_info(F,E_No_n,tetrahedron_n,tubewall_Jie,polar_Jie,shielding_Jie,tol_nods_n,tubewall_tol_node_n,polar_tol_node_n,shielding_tol_node_n,JB_n,tol_n_innernode);%存储节点信息
+% Dan= unit_info(F,tol_N,tetrahedron_n,tubewall_Dan,polar_Dan,shielding_Dan,tubewall_tol_n,polar_tol_n,shielding_tol_n,tol_nods_n,tubewall_tol_node_n,polar_tol_node_n,tol_n_innernode);%存储单元信息
+
+
+%% 极板编号信息
+ [JN ,JB ,JB_BH] = JB_Location( JB_n ,JB_jie_n ,polar_cycles ,E_No_n,E_No,tubewall_tol_node_n, tol_n_innernode ,JB_N1 ,JB_N2);
+%   JN ,JB：极板覆盖的节点编号
+%   JB_n:极板的个数
+%   JB_jie_n:平面极板所覆盖的节点个数
+%   E_No; %每一平面管内节点总数
+%   E_No_n:平面管壁+管内+极板层+屏蔽层的节点总个数（去除重复节点）
+%   tubewall_tol_node_n:管壁节点总个数（包含管道最外层上的节点）
+%   tol_n_innernode:管道平面最外圈的节点个数
+%   JB_jie_N:立体极板所覆盖的节点个数
+%   JB_N1;极板开始所在的层数
+%   JB_N2;极板结束所在的层数，%%极板结束所在的层数必须大于极板开始所在的层数
+
+
+
+%% ----%%
+%% 加边界条件 %%
+%% 管壁节点编号
+[ TW ] = TW_Location( tol_n_innernode ,tubewall_cycles ,JB_N2 ,JB_N1 ,E_No ,E_No_n );
+
+%% 极板层边界条件
+%% 极板层对应节点的节点编号
+[ JBC ] = JBC_Location(JB_N1 ,JB_N2 ,E_No_n ,tol_n_innernode ,shielding_tol_node_n);%极板所在层的节点编号，非极板所在点的节点编号
+
+%% 屏蔽层边界条件
+%% 屏蔽层对应节点的节点编号
+[ SD ] = SD_Location( JB_N1 ,JB_N2 ,shielding_cycles,E_No_n ,tol_n_innernode ,shielding_tol_node_n );
+
+%% 管道边界条件
+%% 管道对应节点的节点编号
+%管道的介电常数
+
+%% ----%%%
+
+%% 求总刚度矩阵
+%% %%%%%%%%%%%%% 管内物质为气体 epsilon=2
+K = zeros(T_No_N ,T_No_N);%总刚度矩阵
+for n = 1 :tetrahedron_n
+    k = Stiffness_Matrix_Calculate( n ,Jie ,tetrahedron ,T_No_N);%第i个单元的刚度矩阵
+    K = K+k;
+end
+
+%%
+[P, U, C, Q ,Jie_Phi ] = BoundaryCondition( JB_n ,K ,JBC ,SD ,JB_BH, T_No_N ,JB_N2 ,JB_N1 ,JB_jie_n ,JB_jie_N,V);
+% [P, U,C, Q ,Jie_Phi ] = BoundaryCondition3( JB_n ,K ,JBC ,SD ,JB_BH, T_No_N ,JB_N2 ,JB_N1 ,JB_jie_n ,JB_jie_N,V);
+
+%   JB_n:极板的个数
+%   K：总刚度矩阵
+%   JBC:极板层节点编号
+%   SD：屏蔽层节点编号
+%   JB_BH：循环激励极板编号存储
+%   T_No_N：立体管道节点总个数
+%   JB_N1;极板开始所在的层数
+%   JB_N2;极板结束所在的层数，%%极板结束所在的层数必须大于极板开始所在的层数
+%   JB_jie_N:极板所覆盖的节点个数
+
+ 
+%% 画图展示电容值对 
+figure
+bar(U)
+title('场域内部各结点的电位值','fontsize',14)
+
+% bar(U(1:181,:))
+figure
+C1=abs(C) ;
+
+bar(C1);
+a = size(C1);
+% a = 2;
+title( {[num2str(a(2)),'对电容值']},'fontsize',14) 
